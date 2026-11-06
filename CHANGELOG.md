@@ -1,5 +1,10 @@
 # Changelog
 
+## alpha0.2
+
+- **`/repeat N` (`/ripeti N`)**: the bridge keeps every message it sent you (`history_h`, default 48 h, up to `history_max`, default 100; photos and voice notes included) and sends the last N again on request, oldest first, marked `↻ HH:MM`. Useful after being out of LoRa coverage. The number is required: `/repeat` alone replies with the usage. Each recipient gets only the messages that were sent to them.
+- New `[limits]` keys `history_h` and `history_max` (`history_max = 0` turns the history off).
+
 ## alpha0.1
 
 - First version: a Telegram group or channel bridged to Reticulum/LXMF through a bot.

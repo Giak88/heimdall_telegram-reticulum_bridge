@@ -15,6 +15,7 @@ import html
 import json
 import mimetypes
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass
@@ -41,6 +42,8 @@ class Limits:
     link_kbps: float = 1.2            # only for the time estimate
     pending_ttl_h: float = 24
     rate_per_min: int = 10            # max messages per LXMF sender per minute (0 = no limit)
+    history_h: float = 48             # how long sent messages stay available for /repeat
+    history_max: int = 100            # ...and how many (0 = no history)
 
 
 def human_size(n):
@@ -69,6 +72,7 @@ COMMANDS = {
     "/download": "download", "/scarica": "download",
     "/join": "join", "/entra": "join", "/iscriviti": "join",
     "/leave": "leave", "/esci": "leave",
+    "/repeat": "repeat", "/ripeti": "repeat",
 }
 
 
@@ -80,7 +84,8 @@ class Core:
         self.spool = spool_dir
         self.lim = limits
         self.targets = [h.lower() for h in targets]
-        self.lx_send, self.tg_send, self.tg_fetch, self.name_of = lx_send, tg_send, tg_fetch, name_of
+        self._raw_send, self.tg_send, self.tg_fetch, self.name_of = lx_send, tg_send, tg_fetch, name_of
+        self.lx_send = self._send   # every message to a recipient is remembered for /repeat
         self.senders = senders                  # anyone | targets
         self.subscriptions = subscriptions      # may LXMF users /join?
         self.echo = echo                        # repeat LXMF posts to the other LXMF recipients
@@ -91,7 +96,8 @@ class Core:
         self.tg_status = "unknown"
         self.lock = threading.RLock()
         self.rate = {}
-        self.st = {"chat_id": None, "subscribers": [], "pending": {}, "next_pending": 1}
+        self.st = {"chat_id": None, "subscribers": [], "pending": {}, "next_pending": 1,
+                   "history": {}, "next_hist": 1}
         if os.path.exists(state_path):
             try:
                 with open(state_path) as f:
@@ -153,6 +159,60 @@ class Core:
     def _broadcast(self, text, fields=None):
         for dest in self.recipients():
             self.lx_send(dest, text, fields or {})
+
+    # ----------------------------------------------------------- history / repeat
+    def _send(self, dest, text, fields):
+        if dest in self.recipients():
+            self._remember(dest, text, fields)
+        self._raw_send(dest, text, fields)
+
+    def _remember(self, dest, text, fields):
+        if self.lim.history_max <= 0:
+            return
+        hid = self.st["next_hist"]
+        self.st["next_hist"] += 1
+        entry = {"ts": time.time(), "text": text, "blob": None}
+        if fields:
+            blob = os.path.join(self.spool, f"hist-{hid}")
+            try:
+                with open(blob, "w") as f:
+                    json.dump(_encode_field(fields), f)
+                entry["blob"] = blob
+            except OSError:
+                pass
+        hist = self.st["history"].setdefault(dest, [])
+        hist.append(entry)
+        while len(hist) > self.lim.history_max:
+            _unlink(hist.pop(0).get("blob"))
+
+    def _expire_history(self):
+        cutoff = time.time() - self.lim.history_h * 3600
+        for dest, hist in list(self.st["history"].items()):
+            for e in [e for e in hist if e["ts"] < cutoff]:
+                _unlink(e.get("blob"))
+                hist.remove(e)
+            if not hist:
+                del self.st["history"][dest]
+
+    def _cmd_repeat(self, src, arg):
+        """/repeat N: send again the last N messages the bridge sent to this address, oldest first."""
+        t = self.t
+        if not arg.isdigit() or int(arg) == 0:
+            return self._raw_send(src, t("repeat_usage"), {})
+        sel = self.st["history"].get(src, [])[-int(arg):]
+        if not sel:
+            return self._raw_send(src, t("repeat_none"), {})
+        self._raw_send(src, t("repeat_start", n=len(sel)), {})
+        for e in sel:
+            fields = {}
+            if e.get("blob"):
+                try:
+                    with open(e["blob"]) as f:
+                        fields = _decode_field(json.load(f))
+                except (OSError, ValueError):
+                    pass
+            fmt = "%d/%m %H:%M" if time.time() - e["ts"] > 20 * 3600 else "%H:%M"
+            self._raw_send(src, f"\u21bb {time.strftime(fmt, time.localtime(e['ts']))} {e['text']}", fields)
 
     def _tg_message(self, m):
         head = self._sender(m)
@@ -285,6 +345,7 @@ class Core:
                     if p.get("blob"):
                         _unlink(p["blob"])
                     del self.st["pending"][pid]
+            self._expire_history()
             self._save()
 
     # =============================================================== LXMF -> Telegram
@@ -421,6 +482,10 @@ class Core:
                 return reply(t("download_failed", err=e))
             # stays available for the other recipients until it expires
             self.lx_send(src, f"{p['head']}: {p['caption']}" if p["caption"] else p["head"], field)
+        elif cmd == "repeat":
+            if src not in self.recipients():
+                return reply(t("not_allowed"))
+            self._cmd_repeat(src, arg)
         elif cmd == "join":
             if src in self.targets or src in self.st["subscribers"]:
                 return reply(t("join_already"))
@@ -462,6 +527,8 @@ def _safe(name):
 
 
 def _unlink(p):
+    if not p:
+        return
     try:
         os.unlink(p)
     except OSError:

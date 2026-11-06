@@ -4,7 +4,7 @@
 
 A bridge between a **Telegram group or channel** and **Reticulum / LXMF**. Heimdall has its own LXMF address: whatever anyone writes to that address from Sideband or MeshChatX is posted in the Telegram chat with the sender's name, and whatever is written in the Telegram chat reaches the LXMF addresses you choose — over LoRa, TCP, or whatever your Reticulum network is made of. Photos, voice notes and files go both ways, squeezed to fit a radio link.
 
-> **Status: alpha (`alpha0.1`).** Tested end to end against a real `rnsd` and a simulated Telegram Bot API. Sister project of [Bifrost](https://github.com/Giak88/bifrost_whatsapp-reticulum_bridge) (WhatsApp ⇄ Reticulum).
+> **Status: alpha (`alpha0.2`).** Tested end to end against a real `rnsd` and a simulated Telegram Bot API. Sister project of [Bifrost](https://github.com/Giak88/bifrost_whatsapp-reticulum_bridge) (WhatsApp ⇄ Reticulum).
 
 ```
 Telegram group/channel ── Bot API ── Heimdall (Python) ── rnsd (shared instance) ── RNode / TCP / ...
@@ -18,6 +18,7 @@ Heimdall **never opens your radio**: it is a client of the `rnsd` shared instanc
 - **LXMF → Telegram**: anyone (or only the recipients, your choice) writes to the bridge's address and it is posted as **Name**: text, with the name the sender announces on Reticulum
 - Photos become WebP (Sideband's presets), voice notes become Codec2 or Opus; quality configurable
 - **Confirmation for big media**: above a threshold (32 KB) recipients get a notice with size and airtime, and fetch it with `/download N`. Big videos/files are only downloaded from Telegram when someone asks
+- **Repeat** (`/repeat N`): out of coverage? Ask the bridge to send you again the last N messages it sent you
 - Optional `/join` / `/leave` so LXMF users can subscribe themselves; optional echo between LXMF users
 - Per-sender rate limit, block list, fixed names for addresses
 - Group → supergroup migration followed automatically; channels supported (bot as admin)
@@ -72,11 +73,12 @@ Write to the bridge's address like to any LXMF contact. Plain text, photos, voic
 | Command | What it does |
 |---|---|
 | `/download N` | fetch media number N that was held back because of its size (recipients only) |
+| `/repeat N` | send again the last N messages the bridge sent you (command replies included; each recipient gets only what was sent to them), oldest first, marked `↻ HH:MM`; photos and voice notes included. `/repeat` alone only shows the usage |
 | `/status` | version, Telegram state, chat, number of recipients, held media |
 | `/join`, `/leave` | receive the Telegram chat here / stop (only if `subscriptions = yes`) |
 | `/help` | the list |
 
-Italian aliases: `/scarica`, `/stato`, `/entra`, `/esci`, `/aiuto`.
+Italian aliases: `/scarica`, `/ripeti`, `/stato`, `/entra`, `/esci`, `/aiuto`.
 
 Senders are shown on Telegram with the display name they announce (Sideband's "display name"), or `<first 8 hex>` if the bridge has not heard their announce yet. Fixed names can be set in `[names]`.
 
@@ -117,6 +119,7 @@ Heimdall accepts LXMF messages up to `max_receive_mb` (10). Over LoRa, sending m
 | `max_file_mb` | 0.9 | never deliver above this |
 | `quality_img`, `quality_audio` | `low` | see Media |
 | `rate_per_min` | 10 | per-sender limit (0 = none) |
+| `history_h`, `history_max` | 48, 100 | how long / how many sent messages `/repeat` can bring back (`history_max = 0`: off) |
 | `[names] <hash> = Name` | – | fixed display names |
 
 ## Logs and troubleshooting

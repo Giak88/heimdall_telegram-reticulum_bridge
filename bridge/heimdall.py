@@ -22,7 +22,7 @@ from core import Core, Limits  # noqa: E402
 from i18n import LANGS, make_t, norm_level  # noqa: E402
 from telegram import BotAPI, TelegramError  # noqa: E402
 
-VERSION = "alpha0.1"
+VERSION = "alpha0.2"
 HEX32 = re.compile(r"^[0-9a-f]{32}$")
 
 
@@ -42,7 +42,8 @@ def load_config(path):
     lim = Limits()
     for k, typ in (("confirm_threshold_kb", int), ("max_file_mb", float), ("codec2_mode", str),
                    ("link_kbps", float), ("pending_ttl_h", float), ("quality_img", str),
-                   ("quality_audio", str), ("rate_per_min", int)):
+                   ("quality_audio", str), ("rate_per_min", int),
+                   ("history_h", float), ("history_max", int)):
         v = g("limits", k)
         if v is not None and v.strip():
             setattr(lim, k, typ(v.strip()))

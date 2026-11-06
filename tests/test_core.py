@@ -222,6 +222,58 @@ core.on_lxmf(C, "/stato", {})
 check(str(CHAT) in last_to(C)[1] and T("tg_ok") in last_to(C)[1], "/status")
 core.on_lxmf(C, "/aiuto", {})
 check(last_to(C)[1] == T("help", where=T("where_group")), "/help")
+# ---------------------------------------------------------------- /repeat N
+hspool = os.path.join(work, "hspool")
+os.makedirs(hspool)
+hlx = []
+h = Core(os.path.join(work, "h.json"), hspool, Limits(history_max=4, history_h=1), CHAT, [A, B],
+         lx_send=lambda d, t_, f: hlx.append((d, t_, f)), tg_send=lambda c: None, tg_fetch=fetch,
+         log=lambda s: None, lang=LANG, subscriptions=True)
+RP = {"en": "/repeat", "it": "/ripeti"}[LANG]
+OTHER_RP = {"en": "/ripeti", "it": "/repeat"}[LANG]
+for word in ("uno", "due"):
+    h.on_tg_update(upd(text=word))
+h.on_tg_update(upd(photo=[{"file_id": "F_PHOTO", "file_unique_id": "u9", "file_size": 75000}], caption="pic"))
+h.on_lxmf(A, "/status", {})                       # only A gets this reply, and it is in A's history only
+h.on_tg_update(upd(text="cinque"))
+check(len(h.st["history"][A]) == 4 and len(h.st["history"][B]) == 4, "per-recipient history capped at history_max")
+n = len(hlx)
+h.on_lxmf(A, RP, {})
+check(hlx[n:] == [(A, T("repeat_usage"), {})], "bare /repeat: usage, nothing repeated")
+h.on_lxmf(A, RP + " 0", {})
+h.on_lxmf(A, RP + " abc", {})
+check(hlx[-1][1] == T("repeat_usage") and hlx[-2][1] == T("repeat_usage"), "/repeat 0 and /repeat abc: usage")
+check(h.st["history"][A][-1]["text"].endswith("cinque"), "usage replies and repeats are not recorded")
+n = len(hlx)
+h.on_lxmf(A, RP + " 4", {})
+out = hlx[n:]
+check(len(out) == 5 and all(x[0] == A for x in out) and out[0][1] == T("repeat_start", n=4)
+      and out[1][1].startswith("\u21bb ") and FIELD_IMAGE in out[2][2] and "Telegram:" in out[3][1]
+      and out[4][1].endswith("cinque"), "/repeat 4 for A: oldest first, photo with field, /status reply included")
+n = len(hlx)
+h.on_lxmf(B, OTHER_RP + " 4", {})
+outb = hlx[n:]
+check(len(outb) == 5 and all(x[0] == B for x in outb) and not any("Telegram:" in x[1] for x in outb)
+      and outb[1][1].endswith("uno"), "other-language alias; B gets only what was sent to B")
+h.on_lxmf(C, RP + " 3", {})
+check(hlx[-1][0] == C and hlx[-1][1] == T("not_allowed") and C not in h.st["history"], "non-recipient: refused, nothing stored")
+h.on_lxmf(C, "/join", {})
+h.on_lxmf(C, RP + " 3", {})
+check(hlx[-1][1].startswith(T("repeat_start", n=1)) or len(h.st["history"][C]) == 1,
+      "a new subscriber only has what was sent to them after joining")
+for hist in h.st["history"].values():
+    for e in hist:
+        e["ts"] -= 2 * 3600
+h.expire_pending()
+check(h.st["history"] == {} and not any(n_.startswith("hist-") for n_ in os.listdir(hspool)),
+      "history expires after history_h, blobs removed")
+h.on_lxmf(A, RP + " 3", {})
+check(hlx[-1][1] == T("repeat_none"), "/repeat with empty history")
+off = Core(os.path.join(work, "off.json"), hspool, Limits(history_max=0), CHAT, [A], lambda *a: None,
+           lambda c: None, fetch, log=lambda s: None, lang=LANG)
+off.on_tg_update(upd(text="x"))
+check(off.st["history"] == {}, "history_max = 0 disables the history")
+
 core.on_lxmf(C, "/boh", {})
 check(last_to(C)[1] == T("unknown_command", cmd="/boh"), "unknown command")
 core.on_tg_update(upd(migrate_to_chat_id=-100777))

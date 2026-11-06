@@ -12,15 +12,26 @@ MSG = {
         "en": """Heimdall: this address is bridged to a Telegram {where}.
 Whatever you write here is posted there with your name; what is written there arrives here.
 /download N - fetch a media file that was held back because of its size
+/repeat N - send again the last N messages the bridge sent you (e.g. after being out of coverage)
 /status - bridge status
 /join, /leave - receive the {where}'s messages here (if allowed)
 /help - this text""",
         "it": """Heimdall: questo indirizzo è collegato a un {where} Telegram.
 Quello che scrivi qui viene pubblicato lì con il tuo nome; quello che si scrive lì arriva qui.
 /scarica N - ricevi un media trattenuto perché troppo grande
+/ripeti N - rimanda gli ultimi N messaggi che il bridge ti ha inviato (ad es. dopo essere stato fuori copertura)
 /stato - stato del bridge
 /entra, /esci - ricevi qui i messaggi del {where} (se consentito)
 /aiuto - questo testo""",
+    },
+    "repeat_start": {"en": "Repeating the last {n} message(s):", "it": "Ripeto gli ultimi {n} messaggi:"},
+    "repeat_none": {
+        "en": "Nothing to repeat (the history keeps the bridge's messages for a limited time).",
+        "it": "Niente da ripetere (lo storico conserva i messaggi del bridge per un tempo limitato).",
+    },
+    "repeat_usage": {
+        "en": "Usage: /repeat N (e.g. /repeat 10 sends again the last 10 messages)",
+        "it": "Uso: /ripeti N (ad es. /ripeti 10 rimanda gli ultimi 10 messaggi)",
     },
     "where_group": {"en": "group", "it": "gruppo"},
     "where_channel": {"en": "channel", "it": "canale"},
