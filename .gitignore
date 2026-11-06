@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+config.ini
+*.bak
+*.tmp
+spool/
+state.json
+identity
+address.txt
+tg_offset
