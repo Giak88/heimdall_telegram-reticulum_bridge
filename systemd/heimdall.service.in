@@ -1,0 +1,16 @@
+[Unit]
+Description=Heimdall - Telegram <-> Reticulum/LXMF bridge
+After=network-online.target @RNSD_UNIT@
+Wants=network-online.target
+@RNSD_REQUIRES@
+
+[Service]
+User=@USER@
+WorkingDirectory=@DIR@/bridge
+ExecStartPre=/bin/sleep 5
+ExecStart=@DATA@/venv/bin/python heimdall.py @DATA@/config.ini
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
